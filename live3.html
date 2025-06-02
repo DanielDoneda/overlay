@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Live Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        .overlay-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+        }
+
+        /* Layout 16:9 (Paisagem) */
+        .layout-169 {
+            display: block;
+        }
+
+        .layout-916 {
+            display: none;
+        }
+
+        /* Header com logo e título */
+        .header {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1e7b3c, #2d9e4f);
+            padding: 15px 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(30, 123, 60, 0.3);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            z-index: 10;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .excel-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(45deg, #217346, #0f5132);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .title {
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .live-indicator {
+            background: #ff4444;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.4);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Dicas expandidas */
+        .tips-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 400px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 15px;
+            padding: 20px;
+            border: 2px solid #1e7b3c;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .tips-title {
+            color: #2d9e4f;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tip-item {
+            color: white;
+            font-size: 13px;
+            margin: 8px 0;
+            padding: 8px 12px;
+            background: rgba(45, 158, 79, 0.1);
+            border-radius: 8px;
+            border-left: 3px solid #2d9e4f;
+            transition: all 0.3s ease;
+        }
+
+        .tip-item:hover {
+            background: rgba(45, 158, 79, 0.2);
+            transform: translateX(5px);
+        }
+
+        /* Área da tela principal - 16:9 relativo */
+        .screen-area {
+            position: absolute;
+            top: 90px;
+            left: 20px;
+            right: 340px;
+            height: calc((100vw - 380px) * 9 / 16);
+            max-height: calc(100vh - 300px);
+            background: rgba(0, 0, 0, 0.1);
+            border: 3px dashed rgba(30, 123, 60, 0.5);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(30, 123, 60, 0.7);
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* Área da webcam - reposicionada */
+        .webcam-area {
+            position: absolute;
+            top: 90px;
+            right: 20px;
+            width: 280px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.1);
+            border: 3px dashed rgba(255, 68, 68, 0.5);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 68, 68, 0.7);
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        /* QR Codes - reposicionados */
+        .qr-container {
+            position: absolute;
+            top: 310px;
+            right: 20px;
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .qr-box {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            border: 2px solid rgba(30, 123, 60, 0.3);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .qr-placeholder {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.1);
+            border: 2px dashed rgba(30, 123, 60, 0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(30, 123, 60, 0.7);
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .qr-info {
+            flex: 1;
+        }
+
+        .qr-title {
+            color: #1e7b3c;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .qr-desc {
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Simulador de teclado */
+        .keyboard-display {
+            position: absolute;
+            bottom: 200px;
+            left: 20px;
+            width: 400px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            border: 2px solid #1e7b3c;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .keyboard-title {
+            color: #2d9e4f;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .keyboard-visual {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .key {
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            border: 1px solid #555;
+            min-width: 30px;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .key.active {
+            background: #2d9e4f;
+            color: white;
+            box-shadow: 0 0 15px rgba(45, 158, 79, 0.6);
+            transform: scale(1.1);
+        }
+
+        .key.ctrl {
+            background: #1e7b3c;
+            min-width: 45px;
+        }
+
+        /* Meta da live - barra de progresso */
+        .goal-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(30, 123, 60, 0.3);
+        }
+
+        .goal-title {
+            color: #1e7b3c;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .goal-progress {
+            background: #e9ecef;
+            border-radius: 25px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #1e7b3c, #2d9e4f);
+            height: 100%;
+            border-radius: 25px;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .goal-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .goal-current {
+            font-weight: bold;
+            color: #1e7b3c;
+        }
+
+        .stats-title {
+            color: #1e7b3c;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #1e7b3c;
+        }
+
+        /* Layout 9:16 (Vertical) */
+        @media (max-aspect-ratio: 10/16) {
+            .layout-169 {
+                display: none;
+            }
+            
+            .layout-916 {
+                display: block;
+            }
+
+            .header {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 12px 20px;
+            }
+
+            .title {
+                font-size: 18px;
+            }
+
+            /* Tela principal vertical */
+            .screen-area {
+                top: 80px;
+                left: 10px;
+                right: 10px;
+                bottom: 400px;
+            }
+
+            /* Webcam vertical */
+            .webcam-area {
+                bottom: 320px;
+                right: 10px;
+                left: 10px;
+                width: auto;
+                height: 150px;
+            }
+
+            /* QR Codes vertical */
+            .qr-container {
+                bottom: 80px;
+                right: 10px;
+                left: 10px;
+                width: auto;
+                flex-direction: row;
+                justify-content: space-between;
+            }
+
+            .qr-box {
+                flex: 1;
+                margin: 0 5px;
+                flex-direction: column;
+                text-align: center;
+                gap: 8px;
+            }
+
+            .qr-placeholder {
+                width: 50px;
+                height: 50px;
+            }
+
+            .tips-panel {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+            }
+
+            .stats-panel {
+                display: none; /* Oculta stats no modo vertical para economizar espaço */
+            }
+        }
+
+        /* Botão de toggle layout - removido */
+
+        /* Animações suaves */
+        .overlay-container * {
+            transition: all 0.3s ease;
+        }
+
+        /* Efeito de brilho no header */
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <button class="layout-toggle" onclick="toggleLayout()">📱 ⇄ 🖥️</button>
+    
+    <div class="overlay-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="logo-area">
+                    <div class="excel-icon">X</div>
+                    <div class="title">Excel ao Vivo</div>
+                    <!-- Simulador de Teclado -->
+        <div class="keyboard-display">
+            <div class="keyboard-title">
+                ⌨️ Teclas Utilizadas
+            </div>
+            <div class="keyboard-visual" id="keyboardDisplay">
+                <div class="key ctrl">Ctrl</div>
+                <div class="key">Z</div>
+                <div class="key">C</div>
+                <div class="key">V</div>
+                <div class="key">A</div>
+                <div class="key">F2</div>
+                <div class="key">Alt</div>
+                <div class="key">=</div>
+                <div class="key">F4</div>
+                <div class="key">Home</div>
+                <div class="key">End</div>
+                <div class="key">Shift</div>
+            </div>
+        </div>
+
+        <!-- Meta da Live -->
+        <div class="goal-panel">
+            <div class="goal-title">
+                🎯 Meta da Live
+            </div>
+            <div class="goal-progress">
+                <div class="progress-bar" id="progressBar" style="width: 68%;"></div>
+            </div>
+            <div class="goal-text">
+                <span class="goal-current" id="currentGoal">340</span>
+                <span id="targetGoal">500 curtidas</span>
+            </div>
+        </div>
+
+        <!-- Painel de Stats - removido -->
+    </div>
+                <div class="live-indicator">🔴 AO VIVO</div>
+            </div>
+        </div>
+
+        <!-- Painel de Dicas -->
+        <div class="tips-panel">
+            <div class="tips-title">
+                💡 Dica Rápida
+            </div>
+            <div class="tip-item" id="currentTip">
+                Ctrl + Z desfaz a última ação
+            </div>
+        </div>
+
+        <!-- Área da Tela Principal -->
+        <div class="screen-area">
+            📺 ÁREA DA TELA
+        </div>
+
+        <!-- Área da Webcam -->
+        <div class="webcam-area">
+            📹 WEBCAM
+        </div>
+
+        <!-- QR Codes -->
+        <div class="qr-container">
+            <div class="qr-box">
+                <div class="qr-placeholder">QR 1</div>
+                <div class="qr-info">
+                    <div class="qr-title">Instagram</div>
+                    <div class="qr-desc">@seuusuario</div>
+                </div>
+            </div>
+            <div class="qr-box">
+                <div class="qr-placeholder">QR 2</div>
+                <div class="qr-info">
+                    <div class="qr-title">Material</div>
+                    <div class="qr-desc">Download grátis</div>
+                </div>
+            </div>
+            <div class="qr-box">
+                <div class="qr-placeholder">QR 3</div>
+                <div class="qr-info">
+                    <div class="qr-title">Canal</div>
+                    <div class="qr-desc">Subscribe</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Lista de 50 dicas do Excel
+        const excelTips = [
+            "Ctrl + Z desfaz a última ação",
+            "Ctrl + C copia, Ctrl + V cola",
+            "F2 edita a célula selecionada",
+            "Ctrl + A seleciona tudo",
+            "Alt + = insere SOMA automática",
+            "Ctrl + Shift + L ativa filtros",
+            "F4 repete a última ação",
+            "Ctrl + Home vai para A1",
+            "Ctrl + End vai para última célula",
+            "Ctrl + Shift + $ formata moeda",
+            "F11 cria gráfico rapidamente",
+            "Ctrl + T cria tabela formatada",
+            "Alt + Enter quebra linha na célula",
+            "Ctrl + ; insere data atual",
+            "Ctrl + Shift + : insere hora atual",
+            "F9 recalcula todas as fórmulas",
+            "Ctrl + R preenche à direita",
+            "Ctrl + D preenche para baixo",
+            "Ctrl + Shift + + insere linha/coluna",
+            "Ctrl + - remove linha/coluna",
+            "F12 abre Salvar Como",
+            "Ctrl + F abre buscar",
+            "Ctrl + H abre substituir",
+            "Ctrl + G vai para célula específica",
+            "Alt + F1 cria gráfico na planilha",
+            "Ctrl + Page Up/Down navega abas",
+            "Shift + F11 insere nova planilha",
+            "F7 verifica ortografia",
+            "Ctrl + K insere hyperlink",
+            "Ctrl + 1 abre formatação de células",
+            "Ctrl + Shift + ~ formato geral",
+            "Ctrl + Shift + ! formato número",
+            "Ctrl + Shift + @ formato hora",
+            "Ctrl + Shift + # formato data",
+            "Ctrl + Shift + % formato porcentagem",
+            "Ctrl + B negrito",
+            "Ctrl + I itálico",
+            "Ctrl + U sublinhado",
+            "Ctrl + 5 tachado",
+            "Alt + H + B aplica bordas",
+            "Ctrl + Shift + & aplica borda externa",
+            "Ctrl + Shift + _ remove bordas",
+            "Ctrl + Espaço seleciona coluna",
+            "Shift + Espaço seleciona linha",
+            "Ctrl + Shift + Espaço seleciona tudo",
+            "F5 atualiza dados externos",
+            "Ctrl + Alt + V colar especial",
+            "Alt + Tab alterna entre programas",
+            "Ctrl + W fecha arquivo atual",
+            "Ctrl + N novo arquivo"
+        ];
+
+        let currentTipIndex = 0;
+        let activeKeys = [];
+
+        // Simula pressionamento de teclas
+        function simulateKeyPress() {
+            const keys = document.querySelectorAll('.key');
+            
+            // Remove classe active de todas as teclas
+            keys.forEach(key => key.classList.remove('active'));
+            
+            // Ativa uma tecla aleatória por 1 segundo
+            const randomKey = keys[Math.floor(Math.random() * keys.length)];
+            randomKey.classList.add('active');
+            
+            setTimeout(() => {
+                randomKey.classList.remove('active');
+            }, 1000);
+        }
+
+        // Atualiza progresso da meta
+        function updateGoalProgress() {
+            const progressBar = document.getElementById('progressBar');
+            const currentGoal = document.getElementById('currentGoal');
+            
+            // Simula progresso gradual
+            const current = parseInt(currentGoal.textContent);
+            const newValue = Math.min(500, current + Math.floor(Math.random() * 3));
+            const percentage = (newValue / 500) * 100;
+            
+            currentGoal.textContent = newValue;
+            progressBar.style.width = percentage + '%';
+        }
+
+        // Rotaciona dicas a cada 8 segundos
+        function rotateTips() {
+            const tipElement = document.getElementById('currentTip');
+            currentTipIndex = (currentTipIndex + 1) % excelTips.length;
+            
+            tipElement.style.opacity = '0';
+            setTimeout(() => {
+                tipElement.textContent = excelTips[currentTipIndex];
+                tipElement.style.opacity = '1';
+            }, 300);
+        }
+
+        // Atualiza relógio no header
+        function updateTime() {
+            const timeElement = document.getElementById('time');
+            if (timeElement) {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('pt-BR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+                timeElement.textContent = timeString;
+            }
+        }
+
+        // Toggle entre layouts - removido
+
+        // Inicia os timers
+        setInterval(rotateTips, 6000); // Dicas a cada 6 segundos
+        setInterval(simulateKeyPress, 3000); // Simula teclas a cada 3 segundos
+        setInterval(updateGoalProgress, 8000); // Atualiza meta a cada 8 segundos
+        
+        // Primeira execução
+        rotateTips();
+        simulateKeyPress();
+    </script>
+</body>
+</html>
